@@ -59,7 +59,7 @@ Window::Window() :
    solver         (nullptr),
    initial_time   (time(NULL)),
    final_time     (0),
-   fps            (60),
+   fps            (24),
    frame          (0)
 {
    cout << "Window Loaded\n";
@@ -116,7 +116,7 @@ void Window::Display()
 
    for(int i = 0; i < solver->GetNum(); i++)
    {
-      gl::drawCircle(solver->GetParticles()[i].GetPos(), solver->GetParticles()[i].GetRadius()* 80);
+      gl::drawCircle(solver->GetParticles()[i].GetPos(), solver->GetParticles()[i].GetRadius()* SCALE);
    }
 
 
@@ -186,7 +186,7 @@ void Window::Idle()
 {
    solver->PerformSimulation();
    glutPostRedisplay();
-   glutTimerFunc(1000/fps, &cbTimerFunc, 0);
+   glutTimerFunc(1000/fps, &cbTimerFunc, 0); //(1/solver->GetDT())
 
 }
 
