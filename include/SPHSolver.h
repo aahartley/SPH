@@ -32,6 +32,7 @@ public:
 
     int& GetNum(){return num;}
     float& GetDT(){return dt;}
+    Vec2& GetUserF(){return userF;}
     std::vector<Particle> GetParticles(){return particles;}
 
 
@@ -39,6 +40,7 @@ private:
     int num;
     float dt, radius, viscosity, coef;
     std::vector<Particle> particles;
+    Vec2 userF;
 
 };
 

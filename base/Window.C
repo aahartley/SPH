@@ -59,7 +59,7 @@ Window::Window() :
    solver         (nullptr),
    initial_time   (time(NULL)),
    final_time     (0),
-   fps            (24),
+   fps            (60),
    frame          (0)
 {
    cout << "Window Loaded\n";
@@ -152,6 +152,12 @@ void Window::Keyboard( unsigned char key, int x, int y )
         break;
       case 'u':
 	     Usage();
+      case 'd':
+         solver->GetUserF().X() += 10;
+         break;
+      case 'a':
+         solver->GetUserF().X() -= 10;
+         break; 
       break;
    }
 }
