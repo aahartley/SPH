@@ -2,6 +2,7 @@
 
 OFILES = \
 	 base/Geometry.o\
+	 base/GridSearch.o\
 	 base/SPHSolver.o\
 	 base/Window.o\
 
@@ -15,7 +16,7 @@ LIB = $(ROOTDIR)/lib/libstarter.a
 GLLDFLAGS     = -lglut -lGL -lm -lGLU
 
 
-CXX = g++ -Wall -g -O2 -fPIC $(DEFINES) -fopenmp -std=c++11
+CXX = g++ -Wall -g  -fPIC $(DEFINES) -fopenmp -std=c++11
 
 
 

@@ -5,7 +5,7 @@ using namespace gl;
 
 void gl::drawPixel(float x, float y)
 {
-    glColor4f(1,1,1,1);
+    glColor4f(0,0,1,1);
     glPointSize(1);
     glBegin(GL_POINTS);
     glVertex3f(x,y,0);

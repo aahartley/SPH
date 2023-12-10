@@ -8,7 +8,6 @@ namespace window{
 void cbDisplayFunc()
 {
    Window::Instance() -> Display();
-   //glutPostRedisplay();
 
 }
 
@@ -31,7 +30,6 @@ void cbMotionFunc( int x, int y )
 {
    
    Window::Instance() -> Motion( x, y );
-   //glutPostRedisplay();
 }
 
 void cbMouseFunc( int button, int state, int x, int y )
@@ -42,7 +40,6 @@ void cbMouseFunc( int button, int state, int x, int y )
 void cbReshapeFunc( int w, int h )
 {
    Window::Instance() -> Reshape( w, h );
-   //glutPostRedisplay();
 }
 
 
@@ -50,8 +47,8 @@ Window* Window::pWindow = nullptr;
 
 Window::Window() : 
    initialized    ( false ),
-   width          ( 512 ), 
-   height         ( 512 ),
+   width          ( 720 ), 
+   height         ( 720 ),
    display_mode   ( GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH),
    title          ( string("SPH Window") ),
    mouse_x        ( 0 ),
@@ -59,7 +56,7 @@ Window::Window() :
    solver         (nullptr),
    initial_time   (time(NULL)),
    final_time     (0),
-   fps            (60),
+   fps            (100),
    frame          (0)
 {
    cout << "Window Loaded\n";
@@ -91,7 +88,6 @@ void Window::Init( const std::vector<std::string>& args )
    glEnable(GL_DEPTH_TEST);
    glutDisplayFunc( &cbDisplayFunc );
    glutTimerFunc(1000/fps, &cbTimerFunc, 0);
-   //glutIdleFunc( &cbIdleFunc );
    glutKeyboardFunc( &cbKeyboardFunc );
    glutMotionFunc( &cbMotionFunc );
    glutMouseFunc( &cbMouseFunc );
@@ -147,9 +143,6 @@ void Window::Keyboard( unsigned char key, int x, int y )
 {
    switch (key)
    {
-      case 'r':
-	     Reset();
-        break;
       case 'u':
 	     Usage();
       case 'd':
@@ -192,7 +185,7 @@ void Window::Idle()
 {
    solver->PerformSimulation();
    glutPostRedisplay();
-   glutTimerFunc(1000/fps, &cbTimerFunc, 0); //(1/solver->GetDT())
+   glutTimerFunc(1000/fps, &cbTimerFunc, 0); 
 
 }
 
@@ -201,16 +194,12 @@ void Window::Usage()
 {
    cout << "--------------------------------------------------------------\n";
    cout << "Window usage:\n";
+   cout << "a                Push particles left\n";
+   cout << "d                Push particles right\n";
    cout << "--------------------------------------------------------------\n";
-   cout << "r             reset sim parameters\n";
-   cout << "u             display this usage message\n";
    cout << "--------------------------------------------------------------\n";
 }
 
-void Window::Reset()
-{
-   std::cout << "Reset\n";
-}
 
 Window* CreateWindow() { return Window::Instance(); }
 

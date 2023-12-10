@@ -61,7 +61,9 @@
         "thread": "cpp",
         "cinttypes": "cpp",
         "typeinfo": "cpp",
-        "bit": "cpp"
+        "bit": "cpp",
+        "Neighbor.C": "cpp",
+        "GridSearch.C": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

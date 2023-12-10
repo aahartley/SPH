@@ -12,7 +12,6 @@ int main( int argc, char** argv )
    Window* window = CreateWindow();
    SPHSolver solver(324, 0.0750f);
    window->SetSolver(&solver);
-   //solver.PerformSimulation();
    std::vector<std::string> args;
 
    for(int i=0;i<argc;i++)

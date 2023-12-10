@@ -3,9 +3,10 @@
 
 #include <vector>
 #include <iostream>
+#include <cmath>
 
 #include "Particle.h"
-
+#include "GridSearch.h"
 
 class SPHSolver
 {
@@ -17,7 +18,7 @@ public:
     void BoundaryCollisions();
     //smoothing kernel
     float W(Vec2& distance, float h); //distance and smoothing radius
-    Vec2 W_Gradient(Vec2& pos, Vec2& distance, float h);
+    Vec2 W_Gradient(Vec2& distance, float h);
     //calc rho field
     void CalcDensityField(int i);
     Vec2 LaplaceVel(int index);
@@ -33,7 +34,7 @@ public:
     int& GetNum(){return num;}
     float& GetDT(){return dt;}
     Vec2& GetUserF(){return userF;}
-    std::vector<Particle> GetParticles(){return particles;}
+    std::vector<Particle>& GetParticles(){return particles;}
 
 
 private:
@@ -41,6 +42,7 @@ private:
     float dt, radius, viscosity, coef;
     std::vector<Particle> particles;
     Vec2 userF;
+    GridSearch grid;
 
 };
 

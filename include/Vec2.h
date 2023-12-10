@@ -14,12 +14,10 @@ public:
 
     float dot(Vec2 v) const {return (xy[0] * v.xy[0]) + (xy[1] * v.xy[1]);}
 
-    //! Add two vectors together
     const Vec2 operator+(const Vec2& v) const 
     { 
        return Vec2(xy[0]+v.xy[0], xy[1]+v.xy[1]); 
     }
-    //! Subtract two vectors together
     const Vec2 operator-(const Vec2& v) const 
     { 
        return Vec2(xy[0]-v.xy[0], xy[1]-v.xy[1]); 
@@ -30,15 +28,12 @@ public:
     Vec2& operator+=      (const Vec2& v)
     { xy[0] += v.xy[0]; xy[1] += v.xy[1]; return *this; }
 
-    //! Multiplication of a constant with a vector
     friend const Vec2 operator* (const float w, const Vec2& v)
     { return v*w; }
 	  
-    //! Multiplication of a vector with a constant
     const Vec2 operator*        (const float v) const
     { return Vec2(xy[0]*v, xy[1]*v); }
 
-    //! Division of a vector with a constant
     const Vec2 operator/        (const float v) const
     { return Vec2(xy[0]/v, xy[1]/v); }
 
