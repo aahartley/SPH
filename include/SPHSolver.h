@@ -15,6 +15,7 @@ public:
     ~SPHSolver();
 
     void GenerateParticles();
+    void GenerateBoundary();
     void BoundaryCollisions();
     //smoothing kernel
     float W(Vec2& distance, float h); //distance and smoothing radius
@@ -32,13 +33,14 @@ public:
     void PerformSimulation();
 
     int& GetNum(){return num;}
+    int& GetNumB(){return numB;}
     float& GetDT(){return dt;}
     Vec2& GetUserF(){return userF;}
     std::vector<Particle>& GetParticles(){return particles;}
 
 
 private:
-    int num;
+    int num, numB;
     float dt, radius, viscosity, coef;
     std::vector<Particle> particles;
     Vec2 userF;

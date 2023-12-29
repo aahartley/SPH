@@ -71,6 +71,7 @@ class Window
     int width, height;
     unsigned int display_mode;
 
+
     std::string title;
     int mouse_x, mouse_y;
     int keystate, button;
@@ -82,6 +83,7 @@ class Window
     int initial_time, final_time;
     int fps;
     int frame;
+    bool pause;
 
     static Window* pWindow;
 

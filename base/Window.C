@@ -56,8 +56,9 @@ Window::Window() :
    solver         (nullptr),
    initial_time   (time(NULL)),
    final_time     (0),
-   fps            (100),
-   frame          (0)
+   fps            (60),
+   frame          (0),
+   pause          (false)
 {
    cout << "Window Loaded\n";
 }
@@ -110,7 +111,7 @@ void Window::Display()
 {
    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );	
 
-   for(int i = 0; i < solver->GetNum(); i++)
+   for(int i = 0; i < solver->GetNumB(); i++)
    {
       gl::drawCircle(solver->GetParticles()[i].GetPos(), solver->GetParticles()[i].GetRadius()* SCALE);
    }
@@ -151,6 +152,12 @@ void Window::Keyboard( unsigned char key, int x, int y )
       case 'a':
          solver->GetUserF().X() -= 10;
          break; 
+      case 'p':
+         if(pause)
+            pause = false;
+         else
+            pause = true;
+         break;
       break;
    }
 }
@@ -183,9 +190,14 @@ void Window::Mouse( int b, int state, int x, int y )
 
 void Window::Idle() 
 {
-   solver->PerformSimulation();
-   glutPostRedisplay();
+   if(!pause)
+   {
+      solver->PerformSimulation();
+      glutPostRedisplay();
+   }
    glutTimerFunc(1000/fps, &cbTimerFunc, 0); 
+
+   
 
 }
 
@@ -194,8 +206,10 @@ void Window::Usage()
 {
    cout << "--------------------------------------------------------------\n";
    cout << "Window usage:\n";
+   cout << "Velocity not clamped, some runs will result in NaN values....restart\n";
    cout << "a                Push particles left\n";
    cout << "d                Push particles right\n";
+   cout << "p                Pause sim\n";
    cout << "--------------------------------------------------------------\n";
    cout << "--------------------------------------------------------------\n";
 }

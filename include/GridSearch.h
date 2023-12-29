@@ -16,6 +16,7 @@ public:
 
 private:
     float radius;
+    float diameter;
     int dimension;
     int size;
     std::vector< std::vector<float> > cells;

@@ -2,35 +2,53 @@
 
 SPHSolver::SPHSolver(int num, float radius)
 {
-    this->num = num;
     dt = 0.016f;
     this->radius = radius;
-    particles = std::vector<Particle>(num);
+    this->num = num;
+    numB = num + ((WIDTH/(radius * 2 * SCALE)) * 4);
+    particles = std::vector<Particle>(numB);
     viscosity = .01f;
     coef = 0.9f;
     grid = GridSearch(WIDTH, radius * 4);
     GenerateParticles();
+    GenerateBoundary();
     grid.InitGrid(particles);
     //DFSPH
+    #pragma omp parallel for
     for(int i = 0; i < num; i++)
     {
         CalcDensityField(i);
         CalcFactors(i);
+
     }
+
 }
 
 SPHSolver::~SPHSolver()
 {
 
 }
-
+void SPHSolver::CFL()
+{   
+    float vel_m = particles[0].GetVel().magnitude();
+    float lamda = 0.4f;
+    for(int i = 1; i < num; i++)
+    {
+        float curr_vel = particles[i].GetVel().magnitude();
+        if (curr_vel > vel_m) vel_m = curr_vel;
+    }
+    if(vel_m != 0) 
+        dt = lamda * ((radius * 2.0f) / vel_m);
+    if(dt > 0.016f || dt == 0) dt = 0.016f;
+}
 void SPHSolver::GenerateParticles()
 {
     float xMin = 100.0f;
     float yMin = 100.0f;
     float xMax = 320.0f; // Adjust rectangle dimensions
-    float yMax = 320.0f; // Adjust rectangle dimensions
-    int numPerRow = 18;
+    float yMax = 520.0f; // Adjust rectangle dimensions
+    int numPerRow = (xMax - xMin) / (float)(radius * 2 * SCALE);
+    #pragma omp parallel for
     for (int i = 0; i < num; i++)
     {
         float xPos = xMin + (i % numPerRow) * (radius * 2 * SCALE); // Place particles in rows
@@ -38,9 +56,29 @@ void SPHSolver::GenerateParticles()
 
         if (xPos <= xMax && xPos >= xMin && yPos <= yMax && yPos >= yMin)
         {
-            Particle p(Vec2(0, 0), Vec2(xPos, yPos), radius, 1000, 1000);
+            Particle p(Vec2(0, 0), Vec2(xPos, yPos), radius, 1000, 1000, false);
             particles[i] = p;
         }
+    }
+
+}
+//TODO
+void SPHSolver::GenerateBoundary()
+{
+    int perEdge = float(WIDTH /(radius * 2 * SCALE));
+    int index = num;
+    for (int i = 0; i < perEdge; ++i)
+    {
+        //top, right, bot, left
+        Particle p1(Vec2(0,0), Vec2(i * (radius * 2 * SCALE)+ radius*SCALE, WIDTH - (radius * SCALE)), radius, 1000, 1000, true);
+        particles[index] = p1; index++;
+        Particle p2(Vec2(0,0), Vec2(WIDTH-(radius * SCALE), i * (radius * 2 * SCALE)+ radius*SCALE), radius,1000,1000, true);
+        particles[index] = p2; index++;
+        Particle p3(Vec2(0,0), Vec2(i * (radius * 2 * SCALE) + radius*SCALE, (radius * SCALE)), radius,1000, 1000, true);
+        particles[index] = p3; index++;
+        Particle p4(Vec2(0,0), Vec2((radius * SCALE), i * (radius * 2 * SCALE)+ radius*SCALE), radius,1000,1000, true);
+        particles[index] = p4; index++;
+
     }
 
 }
@@ -100,133 +138,71 @@ Vec2 SPHSolver::W_Gradient(Vec2& distance, float h)
     //std::cout << gradient.magnitude() << '\n';
     return gradient;
 }
-// void SPHSolver::CalcFactors(int i)
-// {
-
-//     Vec2 factor1;
-//     for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
-//     {
-//         int index = grid.GetNeighbors()[i][j];
-//         Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
-//         if((&particles[i] != &particles[index]) )
-//         {
-//             //std::cout << (particles[j].GetMass() * W(dist, radius * 4))  << '\n';
-//             factor1 += (particles[index].GetMass() * W_Gradient(dist, radius * 4));
-//         }
-//     }
-//     float factor2 = 0;
-//     for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
-//     {
-//         int index = grid.GetNeighbors()[i][j];
-//         Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
-//         if((&particles[i] != &particles[index]) )
-//         {
-//             //std::cout << (particles[j].GetMass() * W(dist, radius * 4))  << '\n';
-//             factor2 += ( (particles[index].GetMass() * W_Gradient(dist, radius * 4).magnitude())
-//                         * (particles[index].GetMass() * W_Gradient(dist, radius * 4).magnitude()) );
-//         }
-//     }
-//     float factor = 1 / ((factor1.magnitude() * factor1.magnitude()) + factor2);
-//     if(factor <  1e-6) factor = 1e-6;
-//     particles[i].GetFactor() = factor;
-// }
 void SPHSolver::CalcFactors(int i)
 {
 
     Vec2 factor1;
-    for(int j = 0; j < num; j++)
+    for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
     {
-        Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
-        if((&particles[i] != &particles[j]) )
+        int index = grid.GetNeighbors()[i][j];
+        Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
+        if((&particles[i] != &particles[index]) )
         {
             //std::cout << (particles[j].GetMass() * W(dist, radius * 4))  << '\n';
-            factor1 += (particles[j].GetMass() * W_Gradient(dist, radius * 4));
+            factor1 += (particles[index].GetMass() * W_Gradient(dist, radius * 4));
         }
     }
     float factor2 = 0;
-    for(int j = 0; j < num; j++)
+    for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
     {
-        Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
-        if((&particles[i] != &particles[j]) )
+        int index = grid.GetNeighbors()[i][j];
+        Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
+        if((&particles[i] != &particles[index]) )
         {
             //std::cout << (particles[j].GetMass() * W(dist, radius * 4))  << '\n';
-            factor2 += ( (particles[j].GetMass() * W_Gradient(dist, radius * 4).magnitude())
-                        * (particles[j].GetMass() * W_Gradient(dist, radius * 4).magnitude()) );
+            factor2 += ( (particles[index].GetMass() * W_Gradient(dist, radius * 4).magnitude())
+                        * (particles[index].GetMass() * W_Gradient(dist, radius * 4).magnitude()) );
         }
     }
     float factor = 1 / ((factor1.magnitude() * factor1.magnitude()) + factor2);
     if(factor <  1e-6) factor = 1e-6;
     particles[i].GetFactor() = factor;
 }
-// void SPHSolver::CorrectDensityError()
+// void SPHSolver::CalcFactors(int i)
 // {
-//     float densAvg = 0;
-//     float densRest = 1150;
-//     int iter = 0;
-//     float threshold = 50.f;
-//     #pragma omp parallel for
-//     for(int i = 0; i < num; i++)
+
+//     Vec2 factor1;
+//     for(int j = 0; j < num; j++)
 //     {
-//         densAvg += particles[i].GetDens();
+//         Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
+//         if((&particles[i] != &particles[j]) )
+//         {
+//             //std::cout << (particles[j].GetMass() * W(dist, radius * 4))  << '\n';
+//             factor1 += (particles[j].GetMass() * W_Gradient(dist, radius * 4));
+//         }
 //     }
-//     densAvg /= num;
-//     //std::cout << densAvg << '\n';
-//     while((((densAvg - densRest) > threshold) || iter < 2)&& iter < 100)
+//     float factor2 = 0;
+//     for(int j = 0; j < num; j++)
 //     {
-//         //std::cout << iter << '\n';
-//         float densPAvg = 0;
-//         //predict dens
-//         #pragma omp parallel for
-//         for(int i = 0; i < num; i++)
+//         Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
+//         if((&particles[i] != &particles[j]) )
 //         {
-//             CalcMaterialDens(i);
-//             particles[i].GetDensP() = particles[i].GetDens() + (dt * particles[i].GetDensM() );
-//             //if(particles[i].GetDensP() > densRest * 1.2) particles[i].GetDensP() = densRest * 1.2;
-//             //std::cout << particles[i].GetDensM() <<'\n';
-//             //std::cout <<  particles[i].GetDensP() << '\n';
+//             //std::cout << (particles[j].GetMass() * W(dist, radius * 4))  << '\n';
+//             factor2 += ( (particles[j].GetMass() * W_Gradient(dist, radius * 4).magnitude())
+//                         * (particles[j].GetMass() * W_Gradient(dist, radius * 4).magnitude()) );
 //         }
-//         #pragma omp parallel for
-//         for(int i = 0; i < num; i++)
-//         {
-//             Vec2 sum{0,0};
-//             float ki = ((particles[i].GetDensP() - densRest) / (dt * dt)) * particles[i].GetFactor();
-//             //std::cout << "dp-d0/dt^2: " << ((particles[i].GetDensP() - densRest) / std::pow(dt, 2))<<" factor: "<< particles[i].GetFactor() << " ki: "<<ki<< '\n';
-//             for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
-//             {
-//                 int index = grid.GetNeighbors()[i][j];
-//                 Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
-//                 if((&particles[i] != &particles[index]) )
-//                 {
-//                     float kj = ((particles[index].GetDensP() - densRest) / (dt * dt)) * particles[index].GetFactor();  
-//                      sum += (particles[index].GetMass() * (( (ki / ((particles[i].GetDens()))) + (kj / ((particles[index].GetDens()))) ) *
-//                              W_Gradient(dist, radius*4)));
-//                     //std::cout << sum.X() << ' ' << sum.Y() << '\n';
-//                 }
-//             }
-//             //std::cout << sum.X() << ' ' << sum.Y() << '\n';
-//             particles[i].GetVel() = particles[i].GetVel() -  ((dt * sum));
-//         }
-//         #pragma omp parallel for
-//         for(int i = 0; i < num; i++)
-//         {
-//             densPAvg += particles[i].GetDensP();
-//             particles[i].GetDensP() = 0;
-//             particles[i].GetDensM() = 0;
-//         }
-//         densPAvg /= num;
-//         densAvg = densPAvg;
-//         iter++;
-      
 //     }
-//     //std::cout << "done\n";
+//     float factor = 1 / ((factor1.magnitude() * factor1.magnitude()) + factor2);
+//     if(factor <  1e-6) factor = 1e-6;
+//     particles[i].GetFactor() = factor;
 // }
 void SPHSolver::CorrectDensityError()
 {
     float densAvg = 0;
-    float densRest = 1150;
+    float densRest = 1200;
     int iter = 0;
-    float threshold = 50.f;
-    #pragma omp parallel for
+    float threshold = 100.f;
+    #pragma omp parallel for reduction (+:densAvg)
     for(int i = 0; i < num; i++)
     {
         densAvg += particles[i].GetDens();
@@ -253,21 +229,23 @@ void SPHSolver::CorrectDensityError()
             Vec2 sum{0,0};
             float ki = ((particles[i].GetDensP() - densRest) / (dt * dt)) * particles[i].GetFactor();
             //std::cout << "dp-d0/dt^2: " << ((particles[i].GetDensP() - densRest) / std::pow(dt, 2))<<" factor: "<< particles[i].GetFactor() << " ki: "<<ki<< '\n';
-            for(int j = 0; j < num; j++)
+            for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
             {
-                Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
-                if((&particles[i] != &particles[j]) )
+                int index = grid.GetNeighbors()[i][j];
+                Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
+                if((&particles[i] != &particles[index]) )
                 {
-                    float kj = ((particles[j].GetDensP() - densRest) / (dt * dt)) * particles[j].GetFactor();  
-                     sum += (particles[j].GetMass() * (( (ki / ((particles[i].GetDens()))) + (kj / ((particles[j].GetDens()))) ) *
+                    float kj = ((particles[index].GetDensP() - densRest) / (dt * dt)) * particles[index].GetFactor();  
+                     sum += (particles[index].GetMass() * (( (ki / ((particles[i].GetDens()))) + (kj / ((particles[index].GetDens()))) ) *
                              W_Gradient(dist, radius*4)));
                     //std::cout << sum.X() << ' ' << sum.Y() << '\n';
                 }
             }
             //std::cout << sum.X() << ' ' << sum.Y() << '\n';
             particles[i].GetVel() = particles[i].GetVel() -  ((dt * sum));
+
         }
-        #pragma omp parallel for
+        #pragma omp parallel for reduction (+:densPAvg)
         for(int i = 0; i < num; i++)
         {
             densPAvg += particles[i].GetDensP();
@@ -281,58 +259,75 @@ void SPHSolver::CorrectDensityError()
     }
     //std::cout << "done\n";
 }
-// void::SPHSolver::CorrectDivergenceError()
+// void SPHSolver::CorrectDensityError()
 // {
-//     float densMAvg = 0;
+//     float densAvg = 0;
+//     float densRest = 1250;
 //     int iter = 0;
-//     float threshold = 11.5f;
+//     float threshold = 100.f;
+//     #pragma omp parallel for reduction (+:densAvg)
 //     for(int i = 0; i < num; i++)
 //     {
-//         densMAvg += particles[i].GetDensM();
+//         densAvg += particles[i].GetDens();
 //     }
-//     densMAvg /= num;
-//     while((densMAvg > threshold || iter < 1) && iter < 100)
+//     densAvg /= num;
+//     //std::cout << densAvg << '\n';
+//     while((((densAvg - densRest) > threshold) || iter < 2)&& iter < 100)
 //     {
-//         float dMAvg = 0;
+//         //std::cout << iter << '\n';
+//         float densPAvg = 0;
+//         //predict dens
 //         #pragma omp parallel for
 //         for(int i = 0; i < num; i++)
 //         {
 //             CalcMaterialDens(i);
+//             particles[i].GetDensP() = particles[i].GetDens() + (dt * particles[i].GetDensM() );
+//             //if(particles[i].GetDensP() > densRest * 1.2) particles[i].GetDensP() = densRest * 1.2;
+//             //std::cout << particles[i].GetDensM() <<'\n';
+//             //std::cout <<  particles[i].GetDensP() << '\n';
 //         }
 //         #pragma omp parallel for
 //         for(int i = 0; i < num; i++)
 //         {
-//             Vec2 sum;
-//             float ki = (1.f/dt) * particles[i].GetDensM() * particles[i].GetFactor();
-//             for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
+//             Vec2 sum{0,0};
+//             float ki = ((particles[i].GetDensP() - densRest) / (dt * dt)) * particles[i].GetFactor();
+//             //std::cout << "dp-d0/dt^2: " << ((particles[i].GetDensP() - densRest) / std::pow(dt, 2))<<" factor: "<< particles[i].GetFactor() << " ki: "<<ki<< '\n';
+//             for(int j = 0; j < num; j++)
 //             {
-//                 int index = grid.GetNeighbors()[i][j];
-//                 Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
-//                 if((&particles[i] != &particles[index]))
+//                 Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
+//                 if((&particles[i] != &particles[j]) )
 //                 {
-//                     float kj = (1.f/dt) * particles[index].GetDensM() * particles[index].GetFactor();
-//                     sum += ((particles[index].GetMass() * (( (ki / particles[i].GetDens())  + (kj / particles[index].GetDens()))) *
-//                             W_Gradient(dist, radius*4)));
+//                     float kj = ((particles[j].GetDensP() - densRest) / (dt * dt)) * particles[j].GetFactor();  
+//                      sum += (particles[j].GetMass() * (( (ki / ((particles[i].GetDens()))) + (kj / ((particles[j].GetDens()))) ) *
+//                              W_Gradient(dist, radius*4)));
+//                     //std::cout << sum.X() << ' ' << sum.Y() << '\n';
 //                 }
 //             }
+//             //std::cout << sum.X() << ' ' << sum.Y() << '\n';
 //             particles[i].GetVel() = particles[i].GetVel() -  ((dt * sum));
+//             //if(std::isnan(particles[i].GetVel().X()) || std::isnan(particles[i].GetVel().Y())) particles[i].GetVel() = Vec2(1,0);
+
 //         }
-//         #pragma omp parallel for
+//         #pragma omp parallel for reduction (+:densPAvg)
 //         for(int i = 0; i < num; i++)
 //         {
-//             dMAvg += particles[i].GetDensM();
+//             densPAvg += particles[i].GetDensP();
+//             particles[i].GetDensP() = 0;
 //             particles[i].GetDensM() = 0;
 //         }
-//         dMAvg /= num;
-//         densMAvg = dMAvg;
+//         densPAvg /= num;
+//         densAvg = densPAvg;
 //         iter++;
+      
 //     }
+//     //std::cout << "done\n";
 // }
 void::SPHSolver::CorrectDivergenceError()
 {
     float densMAvg = 0;
     int iter = 0;
-    float threshold = 1.0f;
+    float threshold = 12.0f;
+    #pragma omp parallel for reduction (+:densMAvg)
     for(int i = 0; i < num; i++)
     {
         densMAvg += particles[i].GetDensM();
@@ -351,19 +346,21 @@ void::SPHSolver::CorrectDivergenceError()
         {
             Vec2 sum;
             float ki = (1.f/dt) * particles[i].GetDensM() * particles[i].GetFactor();
-            for(int j = 0; j < num; j++)
+            for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
             {
-                Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
-                if((&particles[i] != &particles[j]))
+                int index = grid.GetNeighbors()[i][j];
+                Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
+                if((&particles[i] != &particles[index]))
                 {
-                    float kj = (1.f/dt) * particles[j].GetDensM() * particles[j].GetFactor();
-                    sum += ((particles[j].GetMass() * (( (ki / particles[i].GetDens())  + (kj / particles[j].GetDens()))) *
+                    float kj = (1.f/dt) * particles[index].GetDensM() * particles[index].GetFactor();
+                    sum += ((particles[index].GetMass() * (( (ki / particles[i].GetDens())  + (kj / particles[index].GetDens()))) *
                             W_Gradient(dist, radius*4)));
                 }
             }
             particles[i].GetVel() = particles[i].GetVel() -  ((dt * sum));
+
         }
-        #pragma omp parallel for
+        #pragma omp parallel for reduction (+:dMAvg)
         for(int i = 0; i < num; i++)
         {
             dMAvg += particles[i].GetDensM();
@@ -374,34 +371,83 @@ void::SPHSolver::CorrectDivergenceError()
         iter++;
     }
 }
-// void SPHSolver::CalcMaterialDens(int i)
+// void::SPHSolver::CorrectDivergenceError()
 // {
-//     for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
+//     float densMAvg = 0;
+//     int iter = 0;
+//     float threshold = 12.5f;
+//     #pragma omp parallel for reduction (+:densMAvg)
+//     for(int i = 0; i < num; i++)
 //     {
-//         int index = grid.GetNeighbors()[i][j];
-//         Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
-//         if((&particles[i] != &particles[index]))
+//         densMAvg += particles[i].GetDensM();
+//     }
+//     densMAvg /= num;
+//     while((densMAvg > threshold || iter < 1) && iter < 100)
+//     {
+//         float dMAvg = 0;
+//         #pragma omp parallel for
+//         for(int i = 0; i < num; i++)
 //         {
-//             particles[i].GetDensM() += ((particles[index].GetMass() * (particles[i].GetVel() - particles[index].GetVel())).dot(W_Gradient(dist, radius * 4)));
+//             CalcMaterialDens(i);
+//         }
+//         #pragma omp parallel for
+//         for(int i = 0; i < num; i++)
+//         {
+//             Vec2 sum;
+//             float ki = (1.f/dt) * particles[i].GetDensM() * particles[i].GetFactor();
+//             for(int j = 0; j < num; j++)
+//             {
+//                 Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
+//                 if((&particles[i] != &particles[j]))
+//                 {
+//                     float kj = (1.f/dt) * particles[j].GetDensM() * particles[j].GetFactor();
+//                     sum += ((particles[j].GetMass() * (( (ki / particles[i].GetDens())  + (kj / particles[j].GetDens()))) *
+//                             W_Gradient(dist, radius*4)));
+//                 }
+//             }
+//             particles[i].GetVel() = particles[i].GetVel() -  ((dt * sum));
+//             //if(std::isnan(particles[i].GetVel().X()) || std::isnan(particles[i].GetVel().Y())) particles[i].GetVel() = Vec2(1,0);
 
 //         }
+//         #pragma omp parallel for reduction (+:dMAvg)
+//         for(int i = 0; i < num; i++)
+//         {
+//             dMAvg += particles[i].GetDensM();
+//             particles[i].GetDensM() = 0;
+//         }
+//         dMAvg /= num;
+//         densMAvg = dMAvg;
+//         iter++;
 //     }
-
-
 // }
 void SPHSolver::CalcMaterialDens(int i)
 {
-    for(int j = 0; j < num; j++)
+    for(int j = 0; j < (int)grid.GetNeighbors()[i].size(); j++)
     {
-        Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
-        if((&particles[i] != &particles[j]))
+        int index = grid.GetNeighbors()[i][j];
+        Vec2 dist = particles[i].GetPosN() - particles[index].GetPosN();
+        if((&particles[i] != &particles[index]))
         {
-            particles[i].GetDensM() += ((particles[j].GetMass() * (particles[i].GetVel() - particles[j].GetVel())).dot( W_Gradient(dist, radius * 4)));
+            particles[i].GetDensM() += ((particles[index].GetMass() * (particles[i].GetVel() - particles[index].GetVel())).dot(W_Gradient(dist, radius * 4)));
 
         }
     }
 
+
 }
+// void SPHSolver::CalcMaterialDens(int i)
+// {
+//     for(int j = 0; j < num; j++)
+//     {
+//         Vec2 dist = particles[i].GetPosN() - particles[j].GetPosN();
+//         if((&particles[i] != &particles[j]))
+//         {
+//             particles[i].GetDensM() += ((particles[j].GetMass() * (particles[i].GetVel() - particles[j].GetVel())).dot( W_Gradient(dist, radius * 4)));
+//             //if(particles[i].GetDensM() < 0) particles[i].GetDensM() = 0;
+//         }
+//     }
+
+// }
 void SPHSolver::CalcDensityField(int i)
 {
     //std::cout << grid.GetNeighbors()[i].size() << '\n';
@@ -419,6 +465,7 @@ void SPHSolver::CalcDensityField(int i)
     }
  
  }
+
 // void SPHSolver::CalcDensityField(int i)
 // {
 //     for(int j = 0; j < num; j++)
@@ -430,7 +477,7 @@ void SPHSolver::CalcDensityField(int i)
       
 
 //         }
-//         std::cout << particles[i].GetDens() << '\n';
+//         //std::cout << particles[i].GetDens() << '\n';
 
 //     }
  
@@ -474,7 +521,7 @@ Vec2 SPHSolver::LaplaceVel(int i)
 
     }
     vel = vel * -1;
-    if(std::isnan(vel.X()) || std::isnan(vel.Y())) vel = Vec2(0,0);
+    //if(std::isnan(vel.X()) || std::isnan(vel.Y())){ vel = Vec2(0,0);}
     //std::cout << vel.X() << ' ' << vel.Y() << '\n';
     return vel;
 }
@@ -496,7 +543,7 @@ Vec2 SPHSolver::LaplaceVel(int i)
 
 //     }
 //     vel = vel * -1;
-//     if(std::isnan(vel.X()) || std::isnan(vel.Y())) vel = Vec2(0,0);
+//     //if(std::isnan(vel.X()) || std::isnan(vel.Y())) vel = Vec2(1,0);
 //     //std::cout << vel.X() << ' ' << vel.Y() << '\n';
 //     return vel;
 // }
@@ -537,20 +584,7 @@ void SPHSolver::BoundaryCollisions()
     }
 }
 
-void SPHSolver::CFL()
-{   
-    float vel_m = particles[0].GetVel().magnitude();
-    float lamda = 0.4f;
-    #pragma omp parallel for
-    for(int i = 1; i < num; i++)
-    {
-        float curr_vel = particles[i].GetVel().magnitude();
-        if (curr_vel > vel_m) vel_m = curr_vel;
-    }
-    if(vel_m != 0) 
-        dt = lamda * ((radius * 2.0f) / vel_m);
-    if(dt > 0.016f || dt == 0) dt = 0.016f;
-}
+
 
 //DFSPH
 void SPHSolver::PerformSimulation()
@@ -575,7 +609,7 @@ void SPHSolver::PerformSimulation()
         //std::cout << particles[i].GetPos().X() << ' ' << particles[i].GetPos().Y() << '\n';
 
     }
-    BoundaryCollisions();
+    //BoundaryCollisions();
     #pragma omp parallel for
     for(int i = 0; i < num; i++)
     {
@@ -591,8 +625,8 @@ void SPHSolver::PerformSimulation()
     for(int i = 0; i < num; i++)
     {
         CalcDensityField(i);
-        //std::cout << particles[i].GetDens() << '\n';
         CalcFactors(i);
+        //std::cout << particles[i].GetDens() << '\n';
     }
     CorrectDivergenceError();
 
